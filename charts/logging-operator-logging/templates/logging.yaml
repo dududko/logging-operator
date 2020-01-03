@@ -18,6 +18,8 @@ spec:
   flowConfigOverride: {{ . }}
   {{- end }}
   controlNamespace: {{ .Values.controlNamespace | default .Release.Namespace }}
+  collectFromNamespaces: {{ .Values.collectFromNamespaces }}
+  watchNamespaces: {{ .Values.watchNamespaces }}
   fluentd:
     {{- if .Values.tls.enabled }}
     tls:

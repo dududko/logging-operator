@@ -35,6 +35,7 @@ type Metrics struct {
 	Path                  string `json:"path,omitempty"`
 	ServiceMonitor        bool   `json:"serviceMonitor,omitempty"`
 	PrometheusAnnotations bool   `json:"prometheusAnnotations,omitempty"`
+	OutputLabels          string `json:"outputLabels,omitempty"`
 }
 
 type KubernetesStorage struct {

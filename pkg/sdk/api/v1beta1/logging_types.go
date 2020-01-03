@@ -36,6 +36,7 @@ type LoggingSpec struct {
 	FluentdSpec             *FluentdSpec   `json:"fluentd,omitempty"`
 	WatchNamespaces         []string       `json:"watchNamespaces,omitempty"`
 	ControlNamespace        string         `json:"controlNamespace"`
+	CollectFromNamespaces   []string       `json:"collectFromNamespaces"`
 
 	// EnableRecreateWorkloadOnImmutableFieldChange enables the operator to recreate the
 	// fluentbit daemonset and the fluentd statefulset (and possibly other resource in the future)

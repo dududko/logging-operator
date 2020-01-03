@@ -17,6 +17,7 @@ package output
 import (
 	"github.com/banzaicloud/logging-operator/pkg/sdk/model/secret"
 	"github.com/banzaicloud/logging-operator/pkg/sdk/model/types"
+	"strings"
 )
 
 // +docName:"CloudWatch output plugin for Fluentd"
@@ -51,7 +52,6 @@ type _docCloudWatch interface{}
 // +kubebuilder:object:generate=true
 // +docName:"Output Config"
 type CloudWatchOutput struct {
-
 	//  Create log group and stream automatically. (default: false)
 	AutoCreateStream bool `json:"auto_create_stream,omitempty"`
 	// AWS access key id
@@ -131,11 +131,11 @@ type CloudWatchOutput struct {
 func (c *CloudWatchOutput) ToDirective(secretLoader secret.SecretLoader, id string) (types.Directive, error) {
 	pluginType := "cloudwatch_logs"
 	pluginID := id + "_" + pluginType
+
 	cloudwatch := &types.OutputPlugin{
 		PluginMeta: types.PluginMeta{
 			Type:      pluginType,
-			Directive: "match",
-			Tag:       "**",
+			Directive: "store",
 			Id:        pluginID,
 		},
 	}
@@ -151,5 +151,51 @@ func (c *CloudWatchOutput) ToDirective(secretLoader secret.SecretLoader, id stri
 			cloudwatch.SubDirectives = append(cloudwatch.SubDirectives, buffer)
 		}
 	}
-	return cloudwatch, nil
+
+	namespace := ""
+	if data := strings.Split(id, "___"); len(data) > 0 {
+		namespace = data[1]
+	}
+
+	prometheusDirectove := &types.OutputPlugin{
+		PluginMeta: types.PluginMeta{
+			Type:      "prometheus",
+			Directive: "store",
+		},
+		SubDirectives: []types.Directive{
+			&types.OutputPlugin{
+				PluginMeta: types.PluginMeta{
+					Directive: "metric",
+				},
+				Params: types.Params{
+					"name": "fluentd_output_status_num_records_total",
+					"desc": "The total number of outgoing records",
+					"type": "counter",
+				},
+				SubDirectives: []types.Directive{
+					&types.OutputPlugin{
+						PluginMeta: types.PluginMeta{
+							Directive: "labels",
+						},
+						Params: types.Params{
+							"tag":           "${tag}",
+							"tag_namespace": namespace,
+							"type":          "cloudwatch_logs",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	copyDirective := &types.OutputPlugin{
+		PluginMeta: types.PluginMeta{
+			Type:      "copy",
+			Directive: "match",
+			Tag:       "**",
+		},
+	}
+	copyDirective.SubDirectives = append(copyDirective.SubDirectives, cloudwatch, prometheusDirectove)
+
+	return copyDirective, nil
 }

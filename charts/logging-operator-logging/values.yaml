@@ -51,3 +51,6 @@ tls:
 watchNamespaces: []
 # Control namespace that contains ClusterOutput and ClusterFlow resources
 controlNamespace: ""
+
+# Limit namespaces to which ClusterFlow config will be applicable
+collectFromNamespaces: []

@@ -25,6 +25,7 @@ import (
 	"github.com/banzaicloud/logging-operator/pkg/sdk/plugins"
 	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"fmt"
 )
 
 type LoggingResources struct {
@@ -82,20 +83,29 @@ func (l *LoggingResources) CreateModel() (*types.Builder, error) {
 			return nil, err
 		}
 	}
-	for _, flowCr := range l.ClusterFlows {
-		flow, err := l.CreateFlowFromCustomResource(v1beta1.Flow{
-			TypeMeta:   flowCr.TypeMeta,
-			ObjectMeta: flowCr.ObjectMeta,
-			Spec:       flowCr.Spec,
-			Status:     flowCr.Status,
-		}, "")
-		if err != nil {
-			// TODO set flow status to error?
-			return nil, err
-		}
-		err = system.RegisterFlow(flow)
-		if err != nil {
-			return nil, err
+	var namespaces []string
+	if len(l.logging.Spec.CollectFromNamespaces) == 0 {
+		namespaces = append(namespaces, "")
+	} else {
+		namespaces = append(namespaces, l.logging.Spec.CollectFromNamespaces...)
+	}
+
+	for _, namespace := range namespaces {
+		for _, flowCr := range l.ClusterFlows {
+			flow, err := l.CreateFlowFromCustomResource(v1beta1.Flow{
+				TypeMeta:   flowCr.TypeMeta,
+				ObjectMeta: flowCr.ObjectMeta,
+				Spec:       flowCr.Spec,
+				Status:     flowCr.Status,
+			}, namespace)
+			if err != nil {
+				// TODO set flow status to error?
+				return nil, err
+			}
+
+			if err = system.RegisterFlow(flow); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if len(l.Flows) == 0 && len(l.ClusterFlows) == 0 {
@@ -109,6 +119,7 @@ func (l *LoggingResources) CreateFlowFromCustomResource(flowCr v1beta1.Flow, nam
 	if err != nil {
 		return nil, err
 	}
+	l.logger.Info(fmt.Sprintf("flow label: %s; namespace: %s", flow.FlowLabel, namespace))
 	outputs := []types.Output{}
 	var multierr error
 FindOutputForAllRefs:
@@ -118,7 +129,7 @@ FindOutputForAllRefs:
 			for _, output := range l.Outputs {
 				// only an output from the same namespace can be used with a matching name
 				if output.Namespace == namespace && outputRef == output.Name {
-					outputId := namespace + "_" + flowCr.Name + "_" + output.Name
+					outputId := namespace + "_" + flowCr.Name + "_" + output.Name + "___" + namespace
 					plugin, err := plugins.CreateOutput(output.Spec, outputId, secret.NewSecretLoader(l.client, output.Namespace, fluentd.OutputSecretPath, l.Secrets))
 					if err != nil {
 						multierr = errors.Combine(multierr, errors.WrapIff(err, "failed to create configured output %s", outputRef))
@@ -131,7 +142,7 @@ FindOutputForAllRefs:
 		}
 		for _, clusterOutput := range l.ClusterOutputs {
 			if outputRef == clusterOutput.Name {
-				outputId := "_" + flowCr.Name + "_" + clusterOutput.Name
+				outputId := "_" + flowCr.Name + "_" + clusterOutput.Name + "___" + namespace
 				plugin, err := plugins.CreateOutput(clusterOutput.Spec.OutputSpec, outputId, secret.NewSecretLoader(l.client, clusterOutput.Namespace, fluentd.OutputSecretPath, l.Secrets))
 				if err != nil {
 					multierr = errors.Combine(multierr, errors.WrapIff(err, "failed to create configured output %s", outputRef))
@@ -148,7 +159,7 @@ FindOutputForAllRefs:
 	// Filter
 	var filters []types.Filter
 	for i, f := range flowCr.Spec.Filters {
-		filter, err := plugins.CreateFilter(f, flowCr.Name, i, secret.NewSecretLoader(l.client, flowCr.Namespace, fluentd.OutputSecretPath, l.Secrets))
+		filter, err := plugins.CreateFilter(f, flowCr.Name, namespace, i, secret.NewSecretLoader(l.client, flowCr.Namespace, fluentd.OutputSecretPath, l.Secrets))
 		if err != nil {
 			multierr = errors.Combine(multierr, errors.WrapIff(err, "failed to create filter with index %d for flow %s", i, flowCr.Name))
 			continue

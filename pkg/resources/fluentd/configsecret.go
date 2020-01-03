@@ -28,9 +28,10 @@ import (
 type fluentdConfig struct {
 	LogLevel string
 	Monitor  struct {
-		Enabled bool
-		Port    int32
-		Path    string
+		Enabled      bool
+		Port         int32
+		Path         string
+		OutputLabels string
 	}
 }
 
@@ -50,9 +51,10 @@ func generateConfig(input fluentdConfig) (string, error) {
 
 func (r *Reconciler) secretConfig() (runtime.Object, k8sutil.DesiredState, error) {
 	input := fluentdConfig{Monitor: struct {
-		Enabled bool
-		Port    int32
-		Path    string
+		Enabled      bool
+		Port         int32
+		Path         string
+		OutputLabels string
 	}{},
 	}
 
@@ -60,6 +62,7 @@ func (r *Reconciler) secretConfig() (runtime.Object, k8sutil.DesiredState, error
 		input.Monitor.Enabled = true
 		input.Monitor.Port = r.Logging.Spec.FluentdSpec.Metrics.Port
 		input.Monitor.Path = r.Logging.Spec.FluentdSpec.Metrics.Path
+		input.Monitor.OutputLabels = r.Logging.Spec.FluentdSpec.Metrics.OutputLabels
 	}
 	if r.Logging.Spec.FluentdSpec.LogLevel != "" {
 		input.LogLevel = r.Logging.Spec.FluentdSpec.LogLevel
